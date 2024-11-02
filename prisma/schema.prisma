@@ -1,0 +1,80 @@
+// prisma/schema.prisma
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String     @id @default(cuid())
+  firstName     String
+  lastName      String
+  email         String     @unique
+  phoneNumber   String
+  passwordHash  String
+  todoLists     TodoList[]
+  checkIns      CheckIn[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+}
+
+model TodoList {
+  id          String        @id @default(cuid())
+  name        String
+  isCompleted Boolean       @default(false)
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  items       Item[]
+  checkIns    CheckIn[]
+  messages    ChatMessage[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model ChatMessage {
+  id         String    @id @default(cuid())
+  role       String    // 'system', 'user', or 'assistant'
+  content    String    // The message content
+  todoListId String
+  todoList   TodoList  @relation(fields: [todoListId], references: [id])
+  createdAt  DateTime  @default(now())
+}
+
+model Item {
+  id          String    @id @default(cuid())
+  name        String
+  notes       String?
+  deadline    DateTime?
+  isCompleted Boolean   @default(false)
+  todoListId  String
+  todoList    TodoList  @relation(fields: [todoListId], references: [id], onDelete: Cascade)
+  subItems    SubItem[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model SubItem {
+  id          String   @id @default(cuid())
+  name        String
+  isCompleted Boolean  @default(false)
+  itemId      String
+  item        Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model CheckIn {
+  id          String    @id @default(cuid())
+  notes       String?
+  scheduledAt DateTime
+  isRecurring Boolean   @default(false)
+  todoListId  String
+  todoList    TodoList  @relation(fields: [todoListId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
