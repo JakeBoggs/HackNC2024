@@ -4,31 +4,50 @@ import { DashboardClient } from './DashboardClient';
 
 export default async function DashboardPage() {
   const user = await getCurrentUser();
-  if (!user) return null; // Layout will handle redirect
+  if (!user) return null;
 
-  const lists = await prisma.todoList.findMany({
-    where: { userId: user.userId },
-    include: {
-      items: {
-        include: {
-          subItems: true,
+  const [lists, checkIns] = await Promise.all([
+    prisma.todoList.findMany({
+      where: { userId: user.userId },
+      include: {
+        items: {
+          include: {
+            subItems: true,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
         },
-        orderBy: {
-          createdAt: 'asc',
+        messages: {
+          orderBy: {
+            createdAt: 'asc',
+          },
         },
       },
-      messages: {
-        orderBy: {
-          createdAt: 'asc',
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    }),
+    prisma.checkIn.findMany({
+      where: {
+        userId: user.userId,
+        scheduledAt: {
+          gte: new Date(),
         },
       },
-    },
-    orderBy: {
-      updatedAt: 'desc',
-    },
-  });
+      orderBy: {
+        scheduledAt: 'asc',
+      },
+      include: {
+        item: {
+          include: {
+            todoList: true,
+          },
+        },
+      },
+    }),
+  ]);
 
-  // Transform the database results to match the expected TodoList interface
   const transformedLists = lists.map(list => ({
     id: list.id,
     name: list.name,
@@ -48,10 +67,26 @@ export default async function DashboardPage() {
     messages: list.messages.map(message => ({
       id: message.id,
       role: message.role,
-      content: message.content,
-      listState: message.listState,
+      content: message.content
     })),
   }));
 
-  return <DashboardClient user={user} initialLists={transformedLists} />;
+  const transformedCheckIns = checkIns.map(checkIn => ({
+    id: checkIn.id,
+    scheduledAt: checkIn.scheduledAt.toISOString(),
+    itemId: checkIn.itemId,
+    item: {
+      name: checkIn.item.name,
+      todoList: {
+        name: checkIn.item.todoList.name,
+      },
+    },
+  }));
+
+  return (
+    <DashboardClient
+      initialLists={transformedLists}
+      initialCheckIns={transformedCheckIns}
+    />
+  );
 }

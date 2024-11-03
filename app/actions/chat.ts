@@ -92,9 +92,10 @@ export async function processChat(todoListId: string, message: string, previousM
         </todo-list>
 
         Always include the complete list in your response, including unchanged items.
+        The user can make edits on their own, assume the most recent version of the list is accurate and ignore previous versions.
         Maintain existing completion states unless explicitly asked to change them.
         Keep your natural language response separate from the XML structure.
-        Be concise but helpful in your responses.`,
+        Be concise but helpful in your responses. Only edit the most recent version of the list provided in the user's current message.`,
       },
       ...previousMessages.map(msg => ({
         role: msg.role,
@@ -108,7 +109,7 @@ export async function processChat(todoListId: string, message: string, previousM
 
     // Get completion from GPT
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-4o",
       messages: messagesForGPT,
       temperature: 0.3,
       max_tokens: 2000,
@@ -135,7 +136,7 @@ export async function processChat(todoListId: string, message: string, previousM
     }
 
     // Remove XML from the message
-    const cleanMessage = reply.replace(regex, '').replace(/list:/g, 'list!').replace(/```[\s\S]*?```/g, '').trim();
+    const cleanMessage = reply.replace(regex, '').replace(/:/g, '.').replace(/```[\s\S]*?```/g, '').trim();
 
     // Save the assistant's message
     const assistantMessage = await addChatMessage(

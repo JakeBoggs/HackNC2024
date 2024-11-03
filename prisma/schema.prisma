@@ -1,4 +1,3 @@
-// prisma/schema.prisma
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
@@ -28,7 +27,6 @@ model TodoList {
   userId      String
   user        User          @relation(fields: [userId], references: [id])
   items       Item[]
-  checkIns    CheckIn[]
   messages    ChatMessage[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -51,6 +49,7 @@ model Item {
   isCompleted Boolean   @default(false)
   todoListId  String
   todoList    TodoList  @relation(fields: [todoListId], references: [id], onDelete: Cascade)
+  checkIns    CheckIn[]
   subItems    SubItem[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -68,11 +67,10 @@ model SubItem {
 
 model CheckIn {
   id          String    @id @default(cuid())
-  notes       String?
   scheduledAt DateTime
-  isRecurring Boolean   @default(false)
-  todoListId  String
-  todoList    TodoList  @relation(fields: [todoListId], references: [id])
+  notes       String?
+  itemId      String
+  item        Item  @relation(fields: [itemId], references: [id], onDelete: Cascade)
   userId      String
   user        User      @relation(fields: [userId], references: [id])
   createdAt   DateTime  @default(now())

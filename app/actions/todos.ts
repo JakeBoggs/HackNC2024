@@ -8,11 +8,13 @@ interface TodoList {
   name: string;
   isCompleted: boolean;
   items: Array<{
+    id?: string;
     name: string;
     notes?: string;
     deadline?: string;
     isCompleted: boolean;
     subItems: Array<{
+      id?: string;
       name: string;
       isCompleted: boolean;
     }>;
@@ -41,7 +43,6 @@ export async function createTodoList(formData: FormData) {
     include: {
       user: true,
       items: true,
-      checkIns: true,
       messages: true,
     },
   });
@@ -94,44 +95,121 @@ export async function updateTodoList(
   }
 
   // Verify the todo list belongs to the user
-  const todoList = await prisma.todoList.findFirst({
+  const existingList = await prisma.todoList.findFirst({
     where: {
       id: todoListId,
       userId: user.userId,
     },
+    include: {
+      items: {
+        include: {
+          subItems: true,
+        },
+      },
+      messages: true,
+    },
   });
 
-  if (!todoList) {
+  if (!existingList) {
     throw new Error('Todo list not found or access denied');
   }
 
   try {
-    // Start a transaction to update both list and chat history
+    // Start a transaction to update the list
     const result = await prisma.$transaction(async (tx) => {
-      // Update the list and items
-      const list = await tx.todoList.update({
-        where: {
-          id: todoListId,
-        },
+      // Update the list's basic info
+      await tx.todoList.update({
+        where: { id: todoListId },
         data: {
           name: updatedList.name,
           isCompleted: updatedList.isCompleted ?? false,
-          items: {
-            deleteMany: {}, // This will cascade to subItems
-            create: updatedList.items?.map(item => ({
+        },
+      });
+
+      // Remove deleted items
+      const keepItemIds = updatedList.items
+        .filter(i => i.id)
+        .map(i => i.id);
+
+      await tx.item.deleteMany({
+        where: {
+          todoListId,
+          id: {
+            notIn: keepItemIds as string[],
+          },
+        },
+      });
+
+      // Handle each item in the updated list
+      for (const item of updatedList.items) {
+        if (item.id) {
+          // Update existing item
+          const updatedItem = await tx.item.update({
+            where: { id: item.id },
+            data: {
               name: item.name,
               notes: item.notes || null,
               deadline: item.deadline ? new Date(item.deadline) : null,
-              isCompleted: item.isCompleted ?? false,
-              subItems: {
-                create: item.subItems?.map(subItem => ({
+              isCompleted: item.isCompleted,
+            },
+          });
+
+          // Update or create subItems
+          for (const subItem of item.subItems) {
+            if (subItem.id) {
+              await tx.subItem.update({
+                where: { id: subItem.id },
+                data: {
                   name: subItem.name,
-                  isCompleted: subItem.isCompleted ?? false,
-                })) || [],
+                  isCompleted: subItem.isCompleted,
+                },
+              });
+            } else {
+              await tx.subItem.create({
+                data: {
+                  name: subItem.name,
+                  isCompleted: subItem.isCompleted,
+                  itemId: updatedItem.id,
+                },
+              });
+            }
+          }
+
+          // Remove deleted subItems
+          const keepSubItemIds = item.subItems
+            .filter(si => si.id)
+            .map(si => si.id);
+
+          await tx.subItem.deleteMany({
+            where: {
+              itemId: item.id,
+              id: {
+                notIn: keepSubItemIds as string[],
               },
-            })) || [],
-          },
-        },
+            },
+          });
+        } else {
+          // Create new item with its subItems
+          await tx.item.create({
+            data: {
+              name: item.name,
+              notes: item.notes || null,
+              deadline: item.deadline ? new Date(item.deadline) : null,
+              isCompleted: item.isCompleted,
+              todoListId: todoListId,
+              subItems: {
+                create: item.subItems.map(subItem => ({
+                  name: subItem.name,
+                  isCompleted: subItem.isCompleted,
+                })),
+              },
+            },
+          });
+        }
+      }
+      // Return the updated list with all relations
+      return await tx.todoList.findUnique({
+        where: { id: todoListId },
         include: {
           items: {
             include: {
@@ -141,11 +219,13 @@ export async function updateTodoList(
               createdAt: 'asc',
             },
           },
-          messages: true,
+          messages: {
+            orderBy: {
+              createdAt: 'asc',
+            },
+          },
         },
       });
-
-      return list;
     });
 
     revalidatePath('/dashboard');
@@ -197,5 +277,55 @@ export async function deleteTodoList(id: string) {
   } catch (error) {
     console.error('Error deleting list:', error);
     throw new Error('Failed to delete list');
+  }
+}
+
+export async function scheduleCheckIn(itemId: string, scheduledAt: string) {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Not authenticated');
+
+  try {
+    // Verify the item exists and belongs to the user
+    const item = await prisma.item.findFirst({
+      where: {
+        id: itemId,
+        todoList: {
+          userId: user.userId,
+        },
+      },
+    });
+
+    if (!item) {
+      throw new Error('Item not found or access denied');
+    }
+
+    const checkIn = await prisma.checkIn.create({
+      data: {
+        scheduledAt: new Date(scheduledAt),
+        item: {
+          connect: {
+            id: itemId,
+          },
+        },
+        user: {
+          connect: {
+            id: user.userId,
+          },
+        },
+      },
+      include: {
+        item: {
+          include: {
+            todoList: true,
+          },
+        },
+      },
+    });
+
+    revalidatePath('/dashboard');
+    return checkIn;
+  } catch (error) {
+    console.error('Error scheduling check-in:', error);
+    throw new Error('Failed to schedule check-in');
   }
 }

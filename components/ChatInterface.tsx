@@ -130,7 +130,7 @@ export default function ChatInterface({ list, onUpdateList }: ChatInterfaceProps
                 ),
               }}
             >
-              {message.content}
+              {message.content.replace(/<todo-list>[\s\S]*?<\/todo-list>/, '').replace(/:/g, '.').replace(/```[\s\S]*?```/g, '').trim()}
             </ReactMarkdown>
           </div>
         ))}
