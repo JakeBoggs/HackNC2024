@@ -21,11 +21,12 @@ interface TodoList {
   }>;
 }
 
-export async function createTodoList(formData: FormData) {
+export async function createTodoList(name: string) {
+  'use server';
+  
   const user = await getCurrentUser();
   if (!user) throw new Error('Not authenticated');
 
-  const name = formData.get('name') as string;
   if (!name) throw new Error('Name is required');
   
   const list = await prisma.todoList.create({
@@ -41,8 +42,11 @@ export async function createTodoList(formData: FormData) {
       }
     },
     include: {
-      user: true,
-      items: true,
+      items: {
+        include: {
+          subItems: true
+        }
+      },
       messages: true,
     },
   });
@@ -328,4 +332,40 @@ export async function scheduleCheckIn(itemId: string, scheduledAt: string) {
     console.error('Error scheduling check-in:', error);
     throw new Error('Failed to schedule check-in');
   }
+}
+
+export async function getCheckIns() {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Not authenticated');
+
+  const checkIns = await prisma.checkIn.findMany({
+    where: {
+      userId: user.userId,
+      scheduledAt: {
+        gte: new Date(),
+      },
+    },
+    orderBy: {
+      scheduledAt: 'asc',
+    },
+    include: {
+      item: {
+        include: {
+          todoList: true,
+        },
+      },
+    },
+  });
+
+  return checkIns.map(checkIn => ({
+    id: checkIn.id,
+    scheduledAt: checkIn.scheduledAt.toISOString(),
+    itemId: checkIn.itemId,
+    item: {
+      name: checkIn.item.name,
+      todoList: {
+        name: checkIn.item.todoList.name,
+      },
+    },
+  }));
 }

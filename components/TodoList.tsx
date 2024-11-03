@@ -89,6 +89,7 @@ export default function TodoList({
   const [editingList, setEditingList] = useState<TodoList | null>(null);
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string>('');
+  const isEditable = !proposedList;
 
   // Update local state when currentList or proposedList changes
   useEffect(() => {
@@ -293,7 +294,7 @@ export default function TodoList({
 
       <div className="flex-1 overflow-y-auto p-4">
         <DragDropContext onDragEnd={handleDragEnd}>
-          <Droppable droppableId="items">
+          <Droppable droppableId="items" isDropDisabled={!isEditable}>
             {(provided) => (
               <div
                 {...provided.droppableProps}
@@ -305,6 +306,7 @@ export default function TodoList({
                     key={item.id || index}
                     draggableId={item.id || `temp-${index}`}
                     index={index}
+                    isDragDisabled={!isEditable}
                   >
                     {(provided, snapshot) => (
                       <div
@@ -317,7 +319,7 @@ export default function TodoList({
                         <div className="flex items-start gap-2">
                           <div
                             {...provided.dragHandleProps}
-                            className="mt-1 cursor-grab hover:text-blue-500"
+                            className={`mt-1 ${isEditable ? 'cursor-grab hover:text-blue-500' : 'cursor-not-allowed text-gray-400'}`}
                           >
                             <GripVertical className="h-5 w-5" />
                           </div>
@@ -327,6 +329,7 @@ export default function TodoList({
                             onCheckedChange={(checked) =>
                               handleItemComplete(index, checked as boolean)
                             }
+                            disabled={!isEditable}
                           />
 
                           <div className="flex-1 space-y-2">
@@ -334,6 +337,7 @@ export default function TodoList({
                               value={item.name}
                               onChange={(e) => handleItemChange(index, 'name', e.target.value)}
                               className={`w-full ${item.isCompleted ? 'line-through text-gray-500' : ''}`}
+                              disabled={!isEditable}
                             />
                             
                             {item.notes !== undefined && (
@@ -342,6 +346,7 @@ export default function TodoList({
                                 onChange={(e) => handleItemChange(index, 'notes', e.target.value)}
                                 placeholder="Add notes..."
                                 className={`w-full min-h-[100px] ${item.isCompleted ? 'line-through text-gray-500' : ''}`}
+                                disabled={!isEditable}
                               />
                             )}
 
@@ -359,6 +364,7 @@ export default function TodoList({
                                   );
                                 }}
                                 className={`w-full ${item.isCompleted ? 'text-gray-500' : ''}`}
+                                disabled={!isEditable}
                               />
                             </div>
 
@@ -370,6 +376,7 @@ export default function TodoList({
                                     onCheckedChange={(checked) =>
                                       handleSubItemComplete(index, subIndex, checked as boolean)
                                     }
+                                    disabled={!isEditable}
                                   />
                                   <Input
                                     value={subItem.name}
@@ -377,11 +384,13 @@ export default function TodoList({
                                       handleSubItemChange(index, subIndex, 'name', e.target.value)
                                     }
                                     className={`flex-1 ${subItem.isCompleted ? 'line-through text-gray-500' : ''}`}
+                                    disabled={!isEditable}
                                   />
                                   <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => handleRemoveSubItem(index, subIndex)}
+                                    disabled={!isEditable}
                                   >
                                     ×
                                   </Button>
@@ -392,6 +401,7 @@ export default function TodoList({
                                   variant="ghost"
                                   size="sm"
                                   onClick={() => handleAddSubItem(index)}
+                                  disabled={!isEditable}
                                 >
                                   + Add Sub-item
                                 </Button>
@@ -403,6 +413,7 @@ export default function TodoList({
                                       setSelectedItemId(item.id);
                                       setCheckInDialogOpen(true);
                                     }}
+                                    disabled={!isEditable}
                                   >
                                     Schedule Check-in
                                   </Button>
@@ -415,6 +426,7 @@ export default function TodoList({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleRemoveItem(index)}
+                            disabled={!isEditable}
                           >
                             ×
                           </Button>
@@ -434,6 +446,7 @@ export default function TodoList({
         <Button
           className="w-full"
           onClick={handleAddItem}
+          disabled={!isEditable}
         >
           + Add Item
         </Button>
